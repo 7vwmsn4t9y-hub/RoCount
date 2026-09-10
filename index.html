@@ -494,16 +494,25 @@
       cloudReady = true;
     }catch(e){ cloudReady = false; }
   }
+  function mergeContactsFromGroup(remote){
+    if(!remote || !remote.memberNames) return;
+    Object.keys(remote.memberNames).forEach(function(cid){
+      if(!findContact(cid)){
+        state.contacts.push({id:cid, name:remote.memberNames[cid]});
+      }
+    });
+  }
   function subscribeGroup(groupId){
     if(!cloudReady || cloudUnsub[groupId]) return;
     cloudUnsub[groupId] = db.collection("ecot-groups").doc(groupId).onSnapshot(function(snap){
       if(!snap.exists) return;
       var remote = snap.data();
       remote.cloud = true;
+      mergeContactsFromGroup(remote);
       var idx = state.groups.findIndex(function(x){return x.id===groupId;});
       if(idx>=0) state.groups[idx] = remote; else state.groups.unshift(remote);
       save();
-      if(ui.screen==="home" || (ui.screen==="group" && ui.groupId===groupId)) render();
+      if(ui.screen==="home" || (ui.screen==="group" && ui.groupId===groupId) || ui.screen==="profiles") render();
     }, function(){ /* connection issue: keep working from local cache */ });
   }
   function subscribeAllCloudGroups(){
@@ -513,6 +522,8 @@
   function syncGroupToCloud(g){
     if(!cloudReady || !g.cloud) return;
     var data = JSON.parse(JSON.stringify(g));
+    data.memberNames = {};
+    g.members.forEach(function(id){ data.memberNames[id] = personName(id); });
     db.collection("ecot-groups").doc(g.id).set(data).catch(function(){});
   }
   function persist(g){
@@ -529,6 +540,7 @@
       if(!snap.exists){ toast("Groupe introuvable — le lien est peut-être incorrect."); return; }
       var remote = snap.data();
       remote.cloud = true;
+      mergeContactsFromGroup(remote);
       var idx = state.groups.findIndex(function(x){return x.id===gid;});
       if(idx>=0) state.groups[idx] = remote; else state.groups.unshift(remote);
       save();
@@ -1193,8 +1205,8 @@
         save();
         syncGroupToCloud(g);
         subscribeGroup(g.id);
-        toast("Partage activé");
         render();
+        toast("Partage activé");
         break;
       }
       case "share-group": {
