@@ -1,22 +1,13 @@
-// Configuration Firebase — à remplacer par la config de TON projet Firebase.
-// Voir LISEZMOI.txt pour la marche à suivre complète (5 minutes, gratuit).
-//
-// 1. Va sur https://console.firebase.google.com → Ajouter un projet
-// 2. Dans le projet : Créer une application Web (icône </>)
-// 3. Firebase te donne un objet de config : copie-le ci-dessous, à la place
-//    de l'exemple "REMPLACE_MOI".
-// 4. Toujours dans la console Firebase : Build > Firestore Database > Créer
-//    une base de données (mode production), puis colle les règles fournies
-//    dans LISEZMOI.txt sous l'onglet "Règles".
-//
-// Tant que cette config n'est pas remplacée, l'app fonctionne normalement
-// mais reste locale à cet appareil (pas de partage entre téléphones).
+// Configuration Firebase du projet "rocount-53ac0".
+// Ces valeurs ne sont pas des secrets : Firebase les conçoit pour être
+// visibles publiquement dans le code d'une app web. La sécurité réelle
+// vient des règles Firestore (voir LISEZMOI.txt).
 
 window.ECOT_FIREBASE_CONFIG = {
-  apiKey: "REMPLACE_MOI",
-  authDomain: "REMPLACE_MOI.firebaseapp.com",
-  projectId: "REMPLACE_MOI",
-  storageBucket: "REMPLACE_MOI.appspot.com",
-  messagingSenderId: "REMPLACE_MOI",
-  appId: "REMPLACE_MOI"
+  apiKey: "AIzaSyDxY8zuIbJVfQlrJ9EAZU0vqPK7V97Ai60",
+  authDomain: "rocount-53ac0.firebaseapp.com",
+  projectId: "rocount-53ac0",
+  storageBucket: "rocount-53ac0.firebasestorage.app",
+  messagingSenderId: "1042538355819",
+  appId: "1:1042538355819:web:cbdf48d9338b38fc58652e"
 };
