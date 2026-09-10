@@ -8,7 +8,7 @@
 <meta name="theme-color" content="#EEEAE0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="Écot">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
@@ -104,7 +104,7 @@
     position:sticky; top:0; z-index:20;
     display:flex; align-items:center; gap:10px;
     padding: calc(env(safe-area-inset-top,0px) + 14px) 18px 12px;
-    background:linear-gradient(var(--paper) 80%, transparent);
+    background:var(--paper);
   }
   .topbar h1{font-size:1.5rem;}
   .topbar .sub{font-size:.8rem; color:var(--ink-muted); margin-top:2px;}
@@ -197,11 +197,10 @@
   }
   .segmented button.active{background:var(--paper-raised); color:var(--ink); box-shadow:var(--shadow);}
 
-  .group-header{padding:2px 0 4px;}
-  .group-header .back-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
-  .group-header .title-row{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
-  .group-header .title-row h2{font-size:1.35rem;}
-  .group-header .title-row .sub{font-size:.8rem; color:var(--ink-muted);}
+  .back-row{display:flex; align-items:center; justify-content:space-between; margin-bottom:10px;}
+  .title-row{display:flex; align-items:center; gap:12px; margin-bottom:14px;}
+  .title-row h2{font-size:1.35rem;}
+  .title-row .sub{font-size:.8rem; color:var(--ink-muted);}
   .stat-row{display:flex; gap:10px;}
   .stat{flex:1; background:var(--paper-raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px;}
   .stat .lbl{font-size:.66rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); margin-bottom:4px;}
@@ -237,11 +236,12 @@
   .balance-val.neg{color:var(--negative);}
   .balance-val.zero{color:var(--ink-faint);}
 
+  .settle-item{border-bottom:1px dashed var(--line);}
+  .settle-item:last-child{border-bottom:none;}
   .settle-row{
-    display:flex; align-items:center; gap:12px; padding:13px 16px;
-    border-bottom:1px dashed var(--line);
+    display:flex; align-items:center; gap:12px; padding:13px 16px 10px;
   }
-  .settle-row:last-child{border-bottom:none;}
+  .settle-btn-wrap{padding:0 16px 14px;}
   .settle-who{display:flex; align-items:center; gap:6px; flex:1; font-size:.88rem; line-height:1.3;}
   .settle-who .avatar{width:22px;height:22px;font-size:.6rem;border-width:0;}
   .settle-arrow{color:var(--ink-faint); font-size:1rem;}
@@ -701,12 +701,14 @@
     } else {
       h += '<div class="card">';
       settle.forEach(function(s){
+        h += '<div class="settle-item">';
         h += '<div class="settle-row">';
         h += '<div class="settle-who">'+avatarHtml(g,s.from,"")+escapeHtml(memberName(g,s.from))+'</div>';
         h += '<div><div class="settle-arrow">→</div><div class="settle-amt mono">'+fmtMoney(s.amount,g.currency)+'</div></div>';
         h += '<div class="settle-who" style="justify-content:flex-end; text-align:right;">'+escapeHtml(memberName(g,s.to))+avatarHtml(g,s.to,"")+'</div>';
         h += '</div>';
-        h += '<div style="padding:0 16px 13px;"><button class="btn btn-secondary btn-block" data-act="settle-now" data-from="'+s.from+'" data-to="'+s.to+'" data-amount="'+s.amount+'">Marquer comme réglé</button></div>';
+        h += '<div class="settle-btn-wrap"><button class="btn btn-secondary btn-block" data-act="settle-now" data-from="'+s.from+'" data-to="'+s.to+'" data-amount="'+s.amount+'">Marquer comme réglé</button></div>';
+        h += '</div>';
       });
       h += '</div>';
     }
@@ -832,7 +834,7 @@
         h += '<div class="split-row"><div class="nm">'+avatarHtml(g,pid)+escapeHtml(memberName(g,pid))+'</div><input type="text" inputmode="decimal" data-act="custom-share" data-id="'+pid+'" value="'+(v?(v/100).toFixed(2).replace(".",","):"")+'"></div>';
       });
       var remain = amt-sum;
-      h += '<div class="split-remainder'+(remain!==0?" err":"")+'">'+(remain===0?"Réparti en totalité":("Reste à répartir : "+fmtMoney(remain,g.currency)))+'</div></div>';
+      h += '<div class="split-remainder'+(remain!==0?" err":"")+'" id="split-remainder">'+(remain===0?"Réparti en totalité":("Reste à répartir : "+fmtMoney(remain,g.currency)))+'</div></div>';
     }
     h += '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-sheet">Annuler</button><button class="btn btn-primary" data-act="save-expense">Enregistrer</button></div>';
     if(isEdit) h += '<button class="btn btn-danger btn-block" style="margin-top:10px;" data-act="delete-expense" data-id="'+d.id+'">Supprimer</button>';
@@ -879,7 +881,7 @@
     render();
   }
 
-  function bindDraftField(id, key, transform){
+  function bindDraftField(id, key, transform, onChange){
     var el = document.getElementById(id);
     if(!el) return;
     var evt = (el.tagName==="SELECT" || el.type==="date") ? "change" : "input";
@@ -887,7 +889,19 @@
       var d = currentDraft();
       if(!d) return;
       d[key] = transform ? transform(el.value) : el.value;
+      if(onChange) onChange();
     });
+  }
+  function updateSplitRemainder(){
+    var d = currentDraft();
+    var elR = document.getElementById("split-remainder");
+    if(!d || !elR || d.splitMode!=="custom") return;
+    var g = findGroup(ui.groupId);
+    var sum = 0;
+    (d.participantIds||[]).forEach(function(pid){ sum += (d.customShares && d.customShares[pid]) || 0; });
+    var remain = (d.amountCents||0) - sum;
+    elR.textContent = remain===0 ? "Réparti en totalité" : ("Reste à répartir : "+fmtMoney(remain, g.currency));
+    elR.classList.toggle("err", remain!==0);
   }
   function afterRender(){
     var backdrop = document.getElementById("backdrop");
@@ -905,7 +919,7 @@
       bindDraftField("f-currency","currency");
       bindDraftField("f-desc","description");
       bindDraftField("f-date","date");
-      bindDraftField("f-amount","amountCents",toCents);
+      bindDraftField("f-amount","amountCents",toCents,updateSplitRemainder);
       bindDraftField("f-t-date","date");
       bindDraftField("f-t-amount","amountCents",toCents);
     }
@@ -1117,11 +1131,7 @@
         var d3 = currentDraft();
         if(!d3.customShares) d3.customShares={};
         d3.customShares[el.getAttribute("data-id")] = parseAmountToCents(el.value)||0;
-        render();
-        setTimeout(function(){
-          var focusEl = document.querySelector('[data-act="custom-share"][data-id="'+el.getAttribute("data-id")+'"]');
-          if(focusEl){ focusEl.focus(); var v=focusEl.value; focusEl.setSelectionRange(v.length,v.length); }
-        },0);
+        updateSplitRemainder();
         break;
       }
       case "delete-expense": {
