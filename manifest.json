@@ -1,6 +1,6 @@
 {
-  "name": "Écot",
-  "short_name": "Écot",
+  "name": "RoCount",
+  "short_name": "RoCount",
   "description": "Gérez les dépenses partagées de vos voyages et événements entre amis.",
   "start_url": "./index.html",
   "scope": "./",

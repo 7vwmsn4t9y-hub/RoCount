@@ -3,13 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Écot</title>
+<title>RoCount</title>
 <meta name="description" content="Gérez les dépenses partagées de vos voyages et événements entre amis.">
 <meta name="theme-color" content="#EEEAE0">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
-<meta name="apple-mobile-web-app-title" content="Écot">
+<meta name="apple-mobile-web-app-title" content="RoCount">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icons/icon-192.png">
 <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
@@ -632,7 +632,7 @@
   function renderHome(){
     var h = "";
     h += '<div class="topbar">';
-    h += '<div style="flex:1;"><h1>Écot</h1><div class="sub">Vos dépenses de groupe, réparties simplement</div></div>';
+    h += '<div style="flex:1;"><h1>RoCount</h1><div class="sub">Vos dépenses de groupe, réparties simplement</div></div>';
     h += '<button class="icon-btn" data-act="open-profiles" aria-label="Profils">👥</button>';
     h += '<button class="icon-btn" data-act="open-stats" aria-label="Statistiques">📊</button>';
     h += '<button class="icon-btn" data-act="open-backup" aria-label="Sauvegarde">⇄</button>';
@@ -1201,7 +1201,7 @@
         g = findGroup(ui.groupId);
         var link = location.origin + location.pathname + "?g=" + g.id;
         if(navigator.share){
-          navigator.share({title:"Écot — "+g.name, text:'Rejoins "'+g.name+'" sur Écot', url:link}).catch(function(){});
+          navigator.share({title:"RoCount — "+g.name, text:'Rejoins "'+g.name+'" sur RoCount', url:link}).catch(function(){});
         } else if(navigator.clipboard && navigator.clipboard.writeText){
           navigator.clipboard.writeText(link).then(function(){ toast("Lien copié !"); }).catch(function(){ prompt("Copie ce lien :", link); });
         } else {
@@ -1391,7 +1391,7 @@
 
   function exportData(){
     var json = JSON.stringify(state, null, 2);
-    var filename = "ecot-sauvegarde-"+todayISO()+".json";
+    var filename = "rocount-sauvegarde-"+todayISO()+".json";
     try{
       var blob = new Blob([json], {type:"application/json"});
       var url = URL.createObjectURL(blob);

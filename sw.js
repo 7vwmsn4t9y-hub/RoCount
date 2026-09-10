@@ -1,4 +1,4 @@
-var CACHE = "ecot-v2";
+var CACHE = "rocount-v3";
 var ASSETS = [
   "./",
   "./index.html",

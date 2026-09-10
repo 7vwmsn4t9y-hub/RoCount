@@ -1,5 +1,5 @@
-Écot — application autonome
-============================
+RoCount — application autonome
+================================
 
 Ce dossier contient une vraie application web indépendante de Claude :
 - index.html         → l'application
@@ -13,30 +13,38 @@ Ce dossier contient une vraie application web indépendante de Claude :
 ------------------------------------------------------
 
 1. Sur https://github.com, crée un nouveau dépôt (New repository), par
-   exemple nommé "ecot". Public ou privé, les deux fonctionnent avec
+   exemple nommé "RoCount". Public ou privé, les deux fonctionnent avec
    GitHub Pages (un dépôt privé nécessite un compte GitHub Pro pour Pages ;
    si tu es sur un compte gratuit, choisis "Public").
 2. Sur ton ordinateur, dans le dossier de ce projet, lance :
 
      git init
      git add .
-     git commit -m "Première version d'Écot"
+     git commit -m "Première version de RoCount"
      git branch -M main
-     git remote add origin https://github.com/TON-COMPTE/ecot.git
+     git remote add origin https://github.com/TON-COMPTE/RoCount.git
      git push -u origin main
+
+   (ou passe par GitHub Desktop : Add Local Repository → Publish repository)
 
 3. Sur GitHub : Settings → Pages → "Build and deployment" → Source :
    "Deploy from a branch" → Branch : main / (root) → Save.
 4. Après une minute ou deux, ton app est en ligne à l'adresse :
-   https://TON-COMPTE.github.io/ecot/
+   https://TON-COMPTE.github.io/RoCount/
 
 INSTALLER SUR TON IPHONE
 --------------------------
-1. Ouvre l'adresse https://TON-COMPTE.github.io/ecot/ dans Safari
+1. Ouvre l'adresse https://TON-COMPTE.github.io/RoCount/ dans Safari
 2. Partager (le carré avec la flèche) → "Sur l'écran d'accueil"
 
 L'app est installée : icône sur l'écran d'accueil, plein écran sans barre
 Safari, utilisable hors connexion une fois ouverte une première fois.
+
+ATTENTION : Safari (navigation normale) et l'icône sur l'écran d'accueil
+ont chacun leur propre stockage de données, séparé l'un de l'autre. Choisis
+une seule façon d'ouvrir l'app (de préférence l'icône) et garde-t'y, pour
+éviter que les deux versions divergent. Le bouton ⇄ (Sauvegarder) permet
+d'exporter/importer les données si tu dois un jour les faire correspondre.
 
 (Alternative rapide sans compte : https://app.netlify.com/drop, glisser-
 déposer ce dossier. Mais sans dépôt Git, tu ne pourras pas facilement
@@ -52,7 +60,7 @@ direct (comme sur Tricount), on branche une base de données Firestore
 (Firebase, gratuit pour cet usage).
 
 1. Va sur https://console.firebase.google.com
-2. "Ajouter un projet" → donne-lui un nom (ex. "ecot") → suis les étapes
+2. "Ajouter un projet" → donne-lui un nom (ex. "rocount") → suis les étapes
    (tu peux désactiver Google Analytics, inutile ici)
 3. Une fois le projet créé, sur la page d'accueil du projet, clique sur
    l'icône Web "</>" pour enregistrer une nouvelle application
@@ -77,6 +85,10 @@ direct (comme sur Tricount), on branche une base de données Firestore
 
    puis clique "Publier".
 
+   (Le nom technique "ecot-groups" utilisé en interne par l'app n'a pas
+   besoin de changer — c'est juste un nom de collection dans la base de
+   données, invisible dans l'app elle-même.)
+
    ATTENTION — ce que ça veut dire concrètement : ces règles ouvertes
    permettent à quiconque connaît l'identifiant d'un groupe (le lien de
    partage) de le lire et le modifier. Il n'y a pas de mot de passe ni de
@@ -92,6 +104,8 @@ direct (comme sur Tricount), on branche une base de données Firestore
      git add firebase-config.js
      git commit -m "Configure Firebase"
      git push
+
+   (ou via GitHub Desktop : résumé → Commit to main → Push origin)
 
    GitHub Pages se met à jour automatiquement en 1-2 minutes.
 
@@ -109,5 +123,6 @@ appareils, à chaque changement.
 - Le bouton ⇄ (Sauvegarder) sur l'écran d'accueil exporte toutes tes
   données en .json, à tout moment, que le partage soit activé ou non.
 - Si tu modifies les fichiers du projet plus tard (nouvelle version), il
-  suffit de refaire "git add . && git commit -m '...' && git push" :
-  GitHub Pages et le service worker mettent à jour l'app automatiquement.
+  suffit de refaire "git add . && git commit -m '...' && git push" (ou
+  Commit + Push dans GitHub Desktop) : GitHub Pages et le service worker
+  mettent à jour l'app automatiquement.
