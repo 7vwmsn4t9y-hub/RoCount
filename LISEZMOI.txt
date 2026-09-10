@@ -1,0 +1,113 @@
+Écot — application autonome
+============================
+
+Ce dossier contient une vraie application web indépendante de Claude :
+- index.html         → l'application
+- firebase-config.js → ta configuration Firebase (à remplir, voir plus bas)
+- manifest.json      → permet l'installation "comme une app" sur iPhone/Android
+- sw.js              → service worker, permet le fonctionnement hors connexion
+- icons/             → icônes de l'application
+
+
+ÉTAPE 1 — Héberger l'app sur GitHub Pages (gratuit)
+------------------------------------------------------
+
+1. Sur https://github.com, crée un nouveau dépôt (New repository), par
+   exemple nommé "ecot". Public ou privé, les deux fonctionnent avec
+   GitHub Pages (un dépôt privé nécessite un compte GitHub Pro pour Pages ;
+   si tu es sur un compte gratuit, choisis "Public").
+2. Sur ton ordinateur, dans le dossier de ce projet, lance :
+
+     git init
+     git add .
+     git commit -m "Première version d'Écot"
+     git branch -M main
+     git remote add origin https://github.com/TON-COMPTE/ecot.git
+     git push -u origin main
+
+3. Sur GitHub : Settings → Pages → "Build and deployment" → Source :
+   "Deploy from a branch" → Branch : main / (root) → Save.
+4. Après une minute ou deux, ton app est en ligne à l'adresse :
+   https://TON-COMPTE.github.io/ecot/
+
+INSTALLER SUR TON IPHONE
+--------------------------
+1. Ouvre l'adresse https://TON-COMPTE.github.io/ecot/ dans Safari
+2. Partager (le carré avec la flèche) → "Sur l'écran d'accueil"
+
+L'app est installée : icône sur l'écran d'accueil, plein écran sans barre
+Safari, utilisable hors connexion une fois ouverte une première fois.
+
+(Alternative rapide sans compte : https://app.netlify.com/drop, glisser-
+déposer ce dossier. Mais sans dépôt Git, tu ne pourras pas facilement
+mettre à jour l'app ni suivre l'historique des changements.)
+
+
+ÉTAPE 2 — Activer le partage en temps réel entre téléphones (Firebase)
+--------------------------------------------------------------------------
+
+Par défaut, chaque groupe reste stocké uniquement dans le téléphone qui l'a
+créé. Pour que plusieurs personnes voient et modifient le même groupe en
+direct (comme sur Tricount), on branche une base de données Firestore
+(Firebase, gratuit pour cet usage).
+
+1. Va sur https://console.firebase.google.com
+2. "Ajouter un projet" → donne-lui un nom (ex. "ecot") → suis les étapes
+   (tu peux désactiver Google Analytics, inutile ici)
+3. Une fois le projet créé, sur la page d'accueil du projet, clique sur
+   l'icône Web "</>" pour enregistrer une nouvelle application
+4. Donne-lui un nom, PAS besoin de cocher "Firebase Hosting"
+   (on utilise déjà GitHub Pages)
+5. Firebase affiche un bloc de code avec un objet "firebaseConfig" :
+   copie ces valeurs (apiKey, authDomain, projectId, etc.) dans le fichier
+   firebase-config.js de ce dossier, à la place des "REMPLACE_MOI"
+6. Toujours dans la console Firebase : menu de gauche → Build →
+   "Firestore Database" → "Créer une base de données" → choisis une
+   région proche de toi → mode "production"
+7. Une fois créée, onglet "Règles" de Firestore, remplace le contenu par :
+
+     rules_version = '2';
+     service cloud.firestore {
+       match /databases/{database}/documents {
+         match /ecot-groups/{groupId} {
+           allow read, write: if true;
+         }
+       }
+     }
+
+   puis clique "Publier".
+
+   ATTENTION — ce que ça veut dire concrètement : ces règles ouvertes
+   permettent à quiconque connaît l'identifiant d'un groupe (le lien de
+   partage) de le lire et le modifier. Il n'y a pas de mot de passe ni de
+   compte : la sécurité repose uniquement sur le fait que ce lien n'est
+   connu que des personnes à qui tu l'as envoyé — exactement comme un
+   lien d'invitation Tricount ou un Google Doc "toute personne avec le
+   lien". Ne partage donc ce lien qu'avec les gens concernés. Les
+   identifiants de groupe sont de longues chaînes aléatoires impossibles
+   à deviner.
+
+8. Remets à jour ton dépôt GitHub avec le fichier firebase-config.js rempli :
+
+     git add firebase-config.js
+     git commit -m "Configure Firebase"
+     git push
+
+   GitHub Pages se met à jour automatiquement en 1-2 minutes.
+
+Une fois cette étape faite : dans l'app, ouvre un groupe → menu "⋯" en
+haut à droite → "Activer le partage" → "Partager le lien". Envoie ce lien
+à tes amis : en l'ouvrant depuis leur téléphone, ils rejoignent le même
+groupe et voient les dépenses se mettre à jour en direct, sur les deux
+appareils, à chaque changement.
+
+
+À SAVOIR
+---------
+- Sans l'étape 2, l'app fonctionne très bien en local (comme avant), juste
+  sans synchronisation entre appareils.
+- Le bouton ⇄ (Sauvegarder) sur l'écran d'accueil exporte toutes tes
+  données en .json, à tout moment, que le partage soit activé ou non.
+- Si tu modifies les fichiers du projet plus tard (nouvelle version), il
+  suffit de refaire "git add . && git commit -m '...' && git push" :
+  GitHub Pages et le service worker mettent à jour l'app automatiquement.
