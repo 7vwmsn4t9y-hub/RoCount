@@ -879,6 +879,16 @@
     render();
   }
 
+  function bindDraftField(id, key, transform){
+    var el = document.getElementById(id);
+    if(!el) return;
+    var evt = (el.tagName==="SELECT" || el.type==="date") ? "change" : "input";
+    el.addEventListener(evt, function(){
+      var d = currentDraft();
+      if(!d) return;
+      d[key] = transform ? transform(el.value) : el.value;
+    });
+  }
   function afterRender(){
     var backdrop = document.getElementById("backdrop");
     if(backdrop && ui.sheet){
@@ -888,6 +898,16 @@
       backdrop.addEventListener("click", function(e){
         if(e.target===backdrop) closeSheet();
       });
+    }
+    if(ui.sheet){
+      var toCents = function(v){ var c=parseAmountToCents(v); return isNaN(c)?0:c; };
+      bindDraftField("f-name","name");
+      bindDraftField("f-currency","currency");
+      bindDraftField("f-desc","description");
+      bindDraftField("f-date","date");
+      bindDraftField("f-amount","amountCents",toCents);
+      bindDraftField("f-t-date","date");
+      bindDraftField("f-t-amount","amountCents",toCents);
     }
     var imp = document.getElementById("f-import");
     if(imp){
