@@ -205,6 +205,8 @@
   .stat{flex:1; background:var(--paper-raised); border:1px solid var(--line); border-radius:14px; padding:12px 14px;}
   .stat .lbl{font-size:.66rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); margin-bottom:4px;}
   .stat .val{font-size:1.05rem; font-weight:700;}
+  .stat .val.pos{color:var(--accent);}
+  .stat .val.neg{color:var(--negative);}
 
   .day-label{font-size:.72rem; text-transform:uppercase; letter-spacing:.05em; color:var(--ink-faint); margin: 6px 2px 0;}
 
@@ -386,9 +388,10 @@
     var s = (parts[0]?parts[0][0]:"") + (parts[1]?parts[1][0]:"");
     return s.toUpperCase() || "?";
   }
-  function avatarHtml(g, id, size){
-    var m = g.members.find(function(x){return x.id===id;});
-    var name = m ? m.name : "?";
+  function findContact(id){ return state.contacts.find(function(c){return c.id===id;}); }
+  function personName(id){ var c=findContact(id); return c?c.name:"—"; }
+  function avatarHtml(id, size){
+    var name = personName(id);
     var cls = "avatar" + (size?(" "+size):"");
     return '<span class="'+cls+'" style="background:'+colorFor(id)+'">'+initials(name)+'</span>';
   }
@@ -429,14 +432,16 @@
     var g1 = uid();
     var e1 = uid(), e2 = uid(), e3 = uid();
     return {
+      contacts: [
+        {id:alice, name:"Alice"},
+        {id:bruno, name:"Bruno"},
+        {id:chloe, name:"Chloé"}
+      ],
+      meId: null,
       groups: [
         {
           id: g1, name: "Exemple — Week-end à Lisbonne", emoji:"🏖️", currency:"EUR",
-          members: [
-            {id:alice, name:"Alice"},
-            {id:bruno, name:"Bruno"},
-            {id:chloe, name:"Chloé"}
-          ],
+          members: [alice, bruno, chloe],
           expenses: [
             {id:e1, type:"expense", description:"Airbnb", amountCents:24000, payerId:alice, participantIds:[alice,bruno,chloe], splitMode:"equal", date: todayISO(), emoji:"🏠", createdAt: Date.now()-300000},
             {id:e2, type:"expense", description:"Courses", amountCents:5230, payerId:bruno, participantIds:[alice,bruno,chloe], splitMode:"equal", date: todayISO(), emoji:"🛒", createdAt: Date.now()-200000},
@@ -444,11 +449,34 @@
           ],
           createdAt: Date.now()-400000
         }
-      ],
-      meByGroup:{}
+      ]
     };
   }
+  function migrateToContacts(){
+    if(state.contacts) return;
+    var contacts = [];
+    var nameToId = {};
+    state.groups.forEach(function(g){
+      var newMembers = [];
+      (g.members||[]).forEach(function(m){
+        var name = (m && m.name) || "?";
+        var key = name.trim().toLowerCase();
+        var cid = nameToId[key];
+        if(!cid){
+          cid = (m && m.id) || uid();
+          nameToId[key] = cid;
+          contacts.push({id:cid, name:name});
+        }
+        newMembers.push(cid);
+      });
+      g.members = newMembers;
+    });
+    state.contacts = contacts;
+    if(state.meId===undefined) state.meId = null;
+    delete state.meByGroup;
+  }
   var state = loadState();
+  migrateToContacts();
   function save(){
     try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
   }
@@ -517,10 +545,9 @@
   var ui = { screen:"home", groupId:null, tab:"expenses", sheet:null, sheetData:null };
 
   function findGroup(id){ return state.groups.find(function(g){return g.id===id;}); }
-  function memberName(g, id){ var m=g.members.find(function(x){return x.id===id;}); return m?m.name:"—"; }
 
   function computeBalances(g){
-    var bal = {}; g.members.forEach(function(m){ bal[m.id]=0; });
+    var bal = {}; g.members.forEach(function(id){ bal[id]=0; });
     g.expenses.forEach(function(e){
       if(e.type==="expense"){
         if(bal[e.payerId]==null) return;
@@ -583,6 +610,8 @@
     var html = "";
     if(ui.screen==="home") html = renderHome();
     else if(ui.screen==="group") html = renderGroup();
+    else if(ui.screen==="profiles") html = renderProfiles();
+    else if(ui.screen==="stats") html = renderStats();
     html += '<div class="toast" id="toast"></div>';
     html += renderSheet();
     app.innerHTML = html;
@@ -593,9 +622,16 @@
     var h = "";
     h += '<div class="topbar">';
     h += '<div style="flex:1;"><h1>Écot</h1><div class="sub">Vos dépenses de groupe, réparties simplement</div></div>';
+    h += '<button class="icon-btn" data-act="open-profiles" aria-label="Profils">👥</button>';
+    h += '<button class="icon-btn" data-act="open-stats" aria-label="Statistiques">📊</button>';
     h += '<button class="icon-btn" data-act="open-backup" aria-label="Sauvegarde">⇄</button>';
     h += '</div>';
     h += '<main>';
+    if(!state.meId){
+      h += '<div class="card" style="padding:14px 16px; display:flex; align-items:center; gap:12px;">';
+      h += '<span style="font-size:1.3rem;">👋</span><div style="flex:1; font-size:.85rem; color:var(--ink-muted); line-height:1.4;">Indique qui tu es pour voir ton solde et tes statistiques.</div>';
+      h += '<button class="btn btn-secondary" style="flex-shrink:0;" data-act="open-profiles">C\'est moi</button></div>';
+    }
     if(state.groups.length===0){
       h += '<div class="empty"><span class="glyph">🧾</span>Aucun événement pour l’instant.<br>Crée ta première cagnotte pour commencer.</div>';
     } else {
@@ -621,7 +657,6 @@
     if(!g){ ui.screen="home"; return renderHome(); }
     var bal = computeBalances(g);
     var total = totalSpent(g);
-    var perHead = g.members.length ? Math.round(total/g.members.length) : 0;
     var h = "";
     h += '<div class="topbar" style="flex-direction:column; align-items:stretch;">';
     h += '<div class="back-row"><button class="icon-btn ghost" data-act="go-home" aria-label="Retour">←</button>';
@@ -629,7 +664,14 @@
     h += '<div class="title-row"><div class="group-emoji">'+g.emoji+'</div><div><h2>'+escapeHtml(g.name)+'</h2><div class="sub">'+g.members.length+' participant'+(g.members.length>1?'s':'')+'</div></div></div>';
     h += '<div class="stat-row" style="margin-bottom:12px;">';
     h += '<div class="stat"><div class="lbl">Total dépensé</div><div class="val mono">'+fmtMoney(total,g.currency)+'</div></div>';
-    h += '<div class="stat"><div class="lbl">Par personne</div><div class="val mono">'+fmtMoney(perHead,g.currency)+'</div></div>';
+    if(state.meId && g.members.indexOf(state.meId)>=0){
+      var myBal = bal[state.meId]||0;
+      var myCls = myBal>0.5?"pos":(myBal<-0.5?"neg":"");
+      h += '<div class="stat"><div class="lbl">Mon solde</div><div class="val mono '+myCls+'">'+fmtSignedMoney(myBal,g.currency)+'</div></div>';
+    } else {
+      var perHead = g.members.length ? Math.round(total/g.members.length) : 0;
+      h += '<div class="stat"><div class="lbl">Par personne</div><div class="val mono">'+fmtMoney(perHead,g.currency)+'</div></div>';
+    }
     h += '</div>';
     h += '<div class="segmented"><button data-act="tab" data-tab="expenses" class="'+(ui.tab==="expenses"?"active":"")+'">Dépenses</button><button data-act="tab" data-tab="balances" class="'+(ui.tab==="balances"?"active":"")+'">Soldes</button><button data-act="tab" data-tab="members" class="'+(ui.tab==="members"?"active":"")+'">Membres</button></div>';
     h += '</div>';
@@ -671,12 +713,12 @@
         if(e.type==="transfer"){
           h += '<div class="expense-row transfer" data-act="edit-expense" data-id="'+e.id+'">';
           h += '<div class="expense-icon">⇄</div>';
-          h += '<div class="expense-mid"><div class="desc">Remboursement</div><div class="who">'+avatarHtml(g,e.fromId)+escapeHtml(memberName(g,e.fromId))+' → '+avatarHtml(g,e.toId)+escapeHtml(memberName(g,e.toId))+'</div></div>';
+          h += '<div class="expense-mid"><div class="desc">Remboursement</div><div class="who">'+avatarHtml(e.fromId)+escapeHtml(personName(e.fromId))+' → '+avatarHtml(e.toId)+escapeHtml(personName(e.toId))+'</div></div>';
           h += '<div class="expense-amt mono">'+fmtMoney(e.amountCents,g.currency)+'</div></div>';
         } else {
           h += '<div class="expense-row" data-act="edit-expense" data-id="'+e.id+'">';
           h += '<div class="expense-icon">'+(e.emoji||"🧾")+'</div>';
-          h += '<div class="expense-mid"><div class="desc">'+escapeHtml(e.description)+'</div><div class="who">'+avatarHtml(g,e.payerId)+'Payé par '+escapeHtml(memberName(g,e.payerId))+'</div></div>';
+          h += '<div class="expense-mid"><div class="desc">'+escapeHtml(e.description)+'</div><div class="who">'+avatarHtml(e.payerId)+'Payé par '+escapeHtml(personName(e.payerId))+'</div></div>';
           h += '<div class="expense-amt mono">'+fmtMoney(e.amountCents,g.currency)+'</div></div>';
         }
       });
@@ -687,10 +729,10 @@
 
   function renderBalancesTab(g, bal){
     var h = '<div class="section-title">Soldes individuels</div><div class="card">';
-    g.members.forEach(function(m){
-      var v = bal[m.id]||0;
+    g.members.forEach(function(id){
+      var v = bal[id]||0;
       var cls = v>0.5?"pos":(v<-0.5?"neg":"zero");
-      h += '<div class="balance-row"><div class="balance-name">'+avatarHtml(g,m.id)+escapeHtml(m.name)+'</div>';
+      h += '<div class="balance-row"><div class="balance-name">'+avatarHtml(id)+escapeHtml(personName(id))+(id===state.meId?' <span style="color:var(--ink-faint); font-weight:400;">(Moi)</span>':'')+'</div>';
       h += '<div class="balance-val '+cls+' mono">'+fmtSignedMoney(v,g.currency)+'</div></div>';
     });
     h += '</div>';
@@ -703,9 +745,9 @@
       settle.forEach(function(s){
         h += '<div class="settle-item">';
         h += '<div class="settle-row">';
-        h += '<div class="settle-who">'+avatarHtml(g,s.from,"")+escapeHtml(memberName(g,s.from))+'</div>';
+        h += '<div class="settle-who">'+avatarHtml(s.from,"")+escapeHtml(personName(s.from))+'</div>';
         h += '<div><div class="settle-arrow">→</div><div class="settle-amt mono">'+fmtMoney(s.amount,g.currency)+'</div></div>';
-        h += '<div class="settle-who" style="justify-content:flex-end; text-align:right;">'+escapeHtml(memberName(g,s.to))+avatarHtml(g,s.to,"")+'</div>';
+        h += '<div class="settle-who" style="justify-content:flex-end; text-align:right;">'+escapeHtml(personName(s.to))+avatarHtml(s.to,"")+'</div>';
         h += '</div>';
         h += '<div class="settle-btn-wrap"><button class="btn btn-secondary btn-block" data-act="settle-now" data-from="'+s.from+'" data-to="'+s.to+'" data-amount="'+s.amount+'">Marquer comme réglé</button></div>';
         h += '</div>';
@@ -717,12 +759,102 @@
 
   function renderMembersTab(g){
     var h = '<div class="card">';
-    g.members.forEach(function(m){
-      h += '<div class="member-row">'+avatarHtml(g,m.id)+'<div class="name">'+escapeHtml(m.name)+'</div>';
-      h += '<button class="rm" data-act="remove-member" data-id="'+m.id+'" aria-label="Retirer">✕</button></div>';
+    g.members.forEach(function(id){
+      h += '<div class="member-row">'+avatarHtml(id)+'<div class="name">'+escapeHtml(personName(id))+(id===state.meId?' <span style="color:var(--ink-faint); font-weight:400;">(Moi)</span>':'')+'</div>';
+      h += '<button class="rm" data-act="remove-member" data-id="'+id+'" aria-label="Retirer">✕</button></div>';
     });
     h += '</div>';
-    h += '<div class="footnote">Un membre avec des dépenses liées ou un solde non nul ne peut pas être retiré.</div>';
+    h += '<div class="footnote">Un membre avec des dépenses liées ou un solde non nul ne peut pas être retiré. Les profils se gèrent dans « Profils » depuis l\'accueil.</div>';
+    return h;
+  }
+
+  function renderProfiles(){
+    var h = "";
+    h += '<div class="topbar"><button class="icon-btn ghost" data-act="go-home" aria-label="Retour">←</button>';
+    h += '<div style="flex:1;"><h1 style="font-size:1.3rem;">Profils</h1><div class="sub">Les personnes avec qui tu sors</div></div></div>';
+    h += '<main>';
+    if(state.contacts.length===0){
+      h += '<div class="empty"><span class="glyph">🧑‍🤝‍🧑</span>Aucun profil pour l’instant.</div>';
+    } else {
+      h += '<div class="card">';
+      state.contacts.forEach(function(c){
+        var isMe = c.id===state.meId;
+        h += '<div class="member-row">'+avatarHtml(c.id)+'<div class="name">'+escapeHtml(c.name)+(isMe?' <span style="color:var(--accent); font-weight:700;">· Moi</span>':'')+'</div>';
+        if(!isMe) h += '<button class="btn btn-ghost" style="font-size:.72rem; padding:6px 10px; white-space:nowrap;" data-act="set-me" data-id="'+c.id+'">C\'est moi</button>';
+        h += '<button class="rm" data-act="remove-contact" data-id="'+c.id+'" aria-label="Supprimer">✕</button></div>';
+      });
+      h += '</div>';
+    }
+    h += '<button class="btn btn-primary btn-block" data-act="add-contact" style="margin-top:6px;">+ Nouveau profil</button>';
+    h += '<div class="footnote">Ces profils sont partagés entre tous tes événements : crée-les une fois, réutilise-les partout.</div>';
+    h += '</main>';
+    return h;
+  }
+
+  function renderStats(){
+    var h = "";
+    h += '<div class="topbar"><button class="icon-btn ghost" data-act="go-home" aria-label="Retour">←</button>';
+    h += '<div style="flex:1;"><h1 style="font-size:1.3rem;">Statistiques</h1><div class="sub">Tes dépenses avec chacun</div></div></div>';
+    h += '<main>';
+    if(!state.meId){
+      h += '<div class="empty"><span class="glyph">🧑‍🤝‍🧑</span>Indique qui tu es dans Profils pour voir tes statistiques.</div>';
+      h += '<button class="btn btn-secondary btn-block" data-act="open-profiles">Aller à Profils</button>';
+      h += '</main>';
+      return h;
+    }
+    var year = new Date().getFullYear();
+    var myTotals = {};
+    var withPerson = {};
+    state.groups.forEach(function(g){
+      var iAmIn = g.members.indexOf(state.meId)>=0;
+      g.expenses.forEach(function(e){
+        if(e.type!=="expense") return;
+        var y;
+        try{ y = new Date(e.date+"T00:00:00").getFullYear(); }catch(err){ y = null; }
+        if(iAmIn && e.payerId===state.meId && y===year){
+          myTotals[g.currency] = (myTotals[g.currency]||0) + e.amountCents;
+        }
+      });
+      if(iAmIn){
+        g.members.forEach(function(mid){
+          if(mid===state.meId) return;
+          if(!withPerson[mid]) withPerson[mid] = {groupIds:{}, totals:{}};
+          withPerson[mid].groupIds[g.id] = true;
+        });
+      }
+    });
+    Object.keys(withPerson).forEach(function(pid){
+      Object.keys(withPerson[pid].groupIds).forEach(function(gid){
+        var g = findGroup(gid);
+        var t = totalSpent(g);
+        withPerson[pid].totals[g.currency] = (withPerson[pid].totals[g.currency]||0) + t;
+      });
+    });
+    h += '<div class="section-title">Mes dépenses en '+year+'</div><div class="card" style="padding:16px;">';
+    var curs = Object.keys(myTotals);
+    if(curs.length===0){
+      h += '<div style="color:var(--ink-muted); font-size:.88rem;">Aucune dépense payée par toi cette année.</div>';
+    } else {
+      h += curs.map(function(c){ return '<div class="val mono" style="font-size:1.3rem; font-weight:700;">'+fmtMoney(myTotals[c],c)+'</div>'; }).join('');
+    }
+    h += '</div>';
+    h += '<div class="section-title" style="margin-top:10px;">Avec qui tu es sorti</div>';
+    var people = Object.keys(withPerson).map(function(pid){
+      return {id:pid, n:Object.keys(withPerson[pid].groupIds).length, totals:withPerson[pid].totals};
+    });
+    people.sort(function(a,b){ return b.n-a.n; });
+    if(people.length===0){
+      h += '<div class="empty" style="padding:24px 20px;">Pas encore d’événement partagé avec quelqu’un.</div>';
+    } else {
+      h += '<div class="card">';
+      people.forEach(function(p){
+        h += '<div class="member-row">'+avatarHtml(p.id)+'<div class="name">'+escapeHtml(personName(p.id))+'<div style="font-size:.72rem; color:var(--ink-muted); font-weight:400;">'+p.n+' événement'+(p.n>1?'s':'')+' ensemble</div></div>';
+        h += '<div class="mono" style="font-size:.85rem; font-weight:700; text-align:right;">'+Object.keys(p.totals).map(function(c){return fmtMoney(p.totals[c],c);}).join('<br>')+'</div>';
+        h += '</div>';
+      });
+      h += '</div>';
+    }
+    h += '</main>';
     return h;
   }
 
@@ -735,6 +867,7 @@
     else if(ui.sheet==="expense") body = sheetExpense();
     else if(ui.sheet==="transfer") body = sheetTransfer();
     else if(ui.sheet==="backup") body = sheetBackup();
+    else if(ui.sheet==="add-contact") body = sheetAddContact();
     var alreadyOpen = sheetWasOpen;
     sheetWasOpen = true;
     return '<div class="sheet-backdrop'+(alreadyOpen?" open":"")+'" id="backdrop"><div class="sheet" id="sheet-inner">'+
@@ -743,7 +876,7 @@
   var sheetWasOpen = false;
 
   function sheetNewGroup(){
-    var d = ui.sheetData || {name:"", emoji:GROUP_EMOJIS[0], currency:"EUR", members:[]};
+    var d = ui.sheetData || {name:"", emoji:GROUP_EMOJIS[0], currency:"EUR", memberIds:[]};
     var h = '<h3>Nouvel événement</h3>';
     h += '<div class="field"><label>Nom</label><input type="text" id="f-name" placeholder="Ex. Week-end à Annecy" value="'+escapeHtml(d.name)+'"></div>';
     h += '<div class="field"><label>Icône</label><div class="chip-row">';
@@ -755,12 +888,13 @@
     CURRENCIES.forEach(function(c){ h += '<option value="'+c+'"'+(d.currency===c?" selected":"")+'>'+c+'</option>'; });
     h += '</select></div>';
     h += '<div class="field"><label>Participants</label>';
-    h += '<div class="chip-row" id="member-chips">';
-    d.members.forEach(function(m,i){
-      h += '<span class="chip no-avatar selected" data-act="rm-draft-member" data-idx="'+i+'">'+escapeHtml(m)+' ✕</span>';
+    h += '<div class="chip-row">';
+    state.contacts.forEach(function(c){
+      var sel = d.memberIds.indexOf(c.id)>=0;
+      h += '<button class="chip'+(sel?" selected":"")+'" data-act="toggle-draft-contact" data-id="'+c.id+'">'+avatarHtml(c.id)+escapeHtml(c.name)+(c.id===state.meId?" (Moi)":"")+(sel?' <span class="check">✓</span>':'')+'</button>';
     });
     h += '</div>';
-    h += '<div style="display:flex; gap:8px; margin-top:8px;"><input type="text" id="f-member" placeholder="Nom du participant" style="flex:1; border:1px solid var(--line); background:var(--paper-sunken); border-radius:11px; padding:12px 13px; font-size:16px;"><button class="btn btn-secondary" data-act="add-draft-member">Ajouter</button></div>';
+    h += '<div style="display:flex; gap:8px; margin-top:8px;"><input type="text" id="f-member" placeholder="Nouveau profil" style="flex:1; border:1px solid var(--line); background:var(--paper-sunken); border-radius:11px; padding:12px 13px; font-size:16px;"><button class="btn btn-secondary" data-act="add-draft-contact">Ajouter</button></div>';
     h += '</div>';
     h += '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-sheet">Annuler</button><button class="btn btn-primary" data-act="save-new-group">Créer</button></div>';
     return h;
@@ -789,14 +923,19 @@
   }
 
   function sheetAddMember(){
+    var g = findGroup(ui.groupId);
+    var available = state.contacts.filter(function(c){ return g.members.indexOf(c.id)<0; });
     var h = '<h3>Ajouter un membre</h3>';
-    h += '<div class="field"><label>Nom</label><input type="text" id="f-newmember" placeholder="Ex. Dorian"></div>';
+    if(available.length){
+      h += '<div class="field"><label>Depuis tes profils</label><div class="chip-row">';
+      available.forEach(function(c){
+        h += '<button class="chip" data-act="add-existing-member" data-id="'+c.id+'">'+avatarHtml(c.id)+escapeHtml(c.name)+'</button>';
+      });
+      h += '</div></div>';
+    }
+    h += '<div class="field"><label>Ou crée un nouveau profil</label><input type="text" id="f-newmember" placeholder="Ex. Dorian"></div>';
     h += '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-sheet">Annuler</button><button class="btn btn-primary" data-act="save-member">Ajouter</button></div>';
     return h;
-  }
-
-  function chipAvatar(g, m, selected){
-    return '<button class="chip'+(selected?" selected":"")+'" data-act="pick-payer" data-id="'+m.id+'">'+avatarHtml(g,m.id)+escapeHtml(m.name)+'</button>';
   }
 
   function sheetExpense(){
@@ -813,14 +952,14 @@
     h += '<div class="field"><label>Montant</label><div class="amount-input"><input type="text" inputmode="decimal" id="f-amount" placeholder="0,00" value="'+(d.amountCents?(d.amountCents/100).toFixed(2).replace(".",","):"")+'"><span class="cur">'+g.currency+'</span></div></div>';
     h += '<div class="field"><label>Date</label><input type="date" id="f-date" value="'+d.date+'"></div>';
     h += '<div class="field"><label>Payé par</label><div class="chip-row" id="payer-chips">';
-    g.members.forEach(function(m){
-      h += '<button class="chip'+(d.payerId===m.id?" selected":"")+'" data-act="pick-payer" data-id="'+m.id+'">'+avatarHtml(g,m.id)+escapeHtml(m.name)+'</button>';
+    g.members.forEach(function(id){
+      h += '<button class="chip'+(d.payerId===id?" selected":"")+'" data-act="pick-payer" data-id="'+id+'">'+avatarHtml(id)+escapeHtml(personName(id))+'</button>';
     });
     h += '</div></div>';
     h += '<div class="field"><label>Pour qui</label><div class="chip-row" id="part-chips">';
-    g.members.forEach(function(m){
-      var sel = d.participantIds.indexOf(m.id)>=0;
-      h += '<button class="chip'+(sel?" selected":"")+'" data-act="toggle-part" data-id="'+m.id+'">'+avatarHtml(g,m.id)+escapeHtml(m.name)+(sel?' <span class="check">✓</span>':'')+'</button>';
+    g.members.forEach(function(id){
+      var sel = d.participantIds.indexOf(id)>=0;
+      h += '<button class="chip'+(sel?" selected":"")+'" data-act="toggle-part" data-id="'+id+'">'+avatarHtml(id)+escapeHtml(personName(id))+(sel?' <span class="check">✓</span>':'')+'</button>';
     });
     h += '</div></div>';
     h += '<div class="field"><label>Répartition</label><div class="segmented"><button data-act="split-mode" data-mode="equal" class="'+(d.splitMode==="equal"?"active":"")+'">Égale</button><button data-act="split-mode" data-mode="custom" class="'+(d.splitMode==="custom"?"active":"")+'">Personnalisée</button></div></div>';
@@ -831,7 +970,7 @@
       d.participantIds.forEach(function(pid){
         var v = (d.customShares&&d.customShares[pid])||0;
         sum += v;
-        h += '<div class="split-row"><div class="nm">'+avatarHtml(g,pid)+escapeHtml(memberName(g,pid))+'</div><input type="text" inputmode="decimal" data-act="custom-share" data-id="'+pid+'" value="'+(v?(v/100).toFixed(2).replace(".",","):"")+'"></div>';
+        h += '<div class="split-row"><div class="nm">'+avatarHtml(pid)+escapeHtml(personName(pid))+'</div><input type="text" inputmode="decimal" data-act="custom-share" data-id="'+pid+'" value="'+(v?(v/100).toFixed(2).replace(".",","):"")+'"></div>';
       });
       var remain = amt-sum;
       h += '<div class="split-remainder'+(remain!==0?" err":"")+'" id="split-remainder">'+(remain===0?"Réparti en totalité":("Reste à répartir : "+fmtMoney(remain,g.currency)))+'</div></div>';
@@ -846,13 +985,13 @@
     var d = ui.sheetData;
     var h = '<h3>Marquer un remboursement</h3>';
     h += '<div class="field"><label>De</label><div class="chip-row">';
-    g.members.forEach(function(m){
-      h += '<button class="chip'+(d.fromId===m.id?" selected":"")+'" data-act="pick-from" data-id="'+m.id+'">'+avatarHtml(g,m.id)+escapeHtml(m.name)+'</button>';
+    g.members.forEach(function(id){
+      h += '<button class="chip'+(d.fromId===id?" selected":"")+'" data-act="pick-from" data-id="'+id+'">'+avatarHtml(id)+escapeHtml(personName(id))+'</button>';
     });
     h += '</div></div>';
     h += '<div class="field"><label>Vers</label><div class="chip-row">';
-    g.members.forEach(function(m){
-      h += '<button class="chip'+(d.toId===m.id?" selected":"")+'" data-act="pick-to" data-id="'+m.id+'">'+avatarHtml(g,m.id)+escapeHtml(m.name)+'</button>';
+    g.members.forEach(function(id){
+      h += '<button class="chip'+(d.toId===id?" selected":"")+'" data-act="pick-to" data-id="'+id+'">'+avatarHtml(id)+escapeHtml(personName(id))+'</button>';
     });
     h += '</div></div>';
     h += '<div class="field"><label>Montant</label><div class="amount-input"><input type="text" inputmode="decimal" id="f-t-amount" value="'+(d.amountCents?(d.amountCents/100).toFixed(2).replace(".",","):"")+'"><span class="cur">'+g.currency+'</span></div></div>';
@@ -869,6 +1008,13 @@
     h += '<div style="height:10px;"></div>';
     h += '<div class="field"><label>Importer un fichier</label><input type="file" id="f-import" accept="application/json"></div>';
     h += '<div class="sheet-actions"><button class="btn btn-ghost btn-block" data-act="close-sheet">Fermer</button></div>';
+    return h;
+  }
+
+  function sheetAddContact(){
+    var h = '<h3>Nouveau profil</h3>';
+    h += '<div class="field"><label>Nom</label><input type="text" id="f-contact-name" placeholder="Ex. Dorian"></div>';
+    h += '<div class="sheet-actions"><button class="btn btn-ghost" data-act="close-sheet">Annuler</button><button class="btn btn-primary" data-act="save-contact">Ajouter</button></div>';
     return h;
   }
 
@@ -935,7 +1081,7 @@
             if(!data || !Array.isArray(data.groups)) throw new Error("format invalide");
             if(confirm("Remplacer les données actuelles par ce fichier ? Cette action est irréversible.")){
               state = data;
-              if(!state.meByGroup) state.meByGroup = {};
+              migrateToContacts();
               save();
               subscribeAllCloudGroups();
               closeSheet();
@@ -980,27 +1126,38 @@
       case "tab":
         ui.tab = el.getAttribute("data-tab"); render(); break;
       case "new-group":
-        openSheet("new-group", {name:"", emoji:GROUP_EMOJIS[0], currency:"EUR", members:[]}); break;
+        openSheet("new-group", {name:"", emoji:GROUP_EMOJIS[0], currency:"EUR", memberIds: state.meId?[state.meId]:[]}); break;
       case "pick-emoji":
         currentDraft().emoji = el.getAttribute("data-val"); render(); break;
       case "pick-category":
         currentDraft().emoji = el.getAttribute("data-val"); render(); break;
-      case "add-draft-member": {
-        var inp = document.getElementById("f-member");
-        var val = inp.value.trim();
-        if(val){ currentDraft().members.push(val); render(); }
+      case "toggle-draft-contact": {
+        var dtc = currentDraft();
+        var ctcId = el.getAttribute("data-id");
+        var ctcIdx = dtc.memberIds.indexOf(ctcId);
+        if(ctcIdx>=0) dtc.memberIds.splice(ctcIdx,1); else dtc.memberIds.push(ctcId);
+        render();
         break;
       }
-      case "rm-draft-member":
-        currentDraft().members.splice(parseInt(el.getAttribute("data-idx"),10),1); render(); break;
+      case "add-draft-contact": {
+        var inp = document.getElementById("f-member");
+        var val = inp.value.trim();
+        if(val){
+          var newContact = {id:uid(), name:val};
+          state.contacts.push(newContact);
+          save();
+          currentDraft().memberIds.push(newContact.id);
+          render();
+        }
+        break;
+      }
       case "save-new-group": {
         var d = currentDraft();
         var name = (document.getElementById("f-name").value||"").trim();
         var currency = document.getElementById("f-currency").value;
         if(!name){ alert("Donne un nom à cet événement."); return; }
-        if(d.members.length<2){ alert("Ajoute au moins deux participants."); return; }
-        var members = d.members.map(function(n){ return {id:uid(), name:n}; });
-        var newG = {id:uid(), name:name, emoji:d.emoji, currency:currency, members:members, expenses:[], createdAt:Date.now()};
+        if(d.memberIds.length<2){ alert("Ajoute au moins deux participants."); return; }
+        var newG = {id:uid(), name:name, emoji:d.emoji, currency:currency, members:d.memberIds.slice(), expenses:[], createdAt:Date.now()};
         state.groups.unshift(newG);
         save();
         closeSheet();
@@ -1053,10 +1210,24 @@
         break;
       case "add-member":
         openSheet("add-member", {}); break;
+      case "add-existing-member": {
+        g = findGroup(ui.groupId);
+        var addId = el.getAttribute("data-id");
+        if(g.members.indexOf(addId)<0){ g.members.push(addId); persist(g); }
+        closeSheet();
+        break;
+      }
       case "save-member": {
         g = findGroup(ui.groupId);
         var mn = (document.getElementById("f-newmember").value||"").trim();
-        if(mn){ g.members.push({id:uid(), name:mn}); persist(g); closeSheet(); }
+        if(mn){
+          var newC2 = {id:uid(), name:mn};
+          state.contacts.push(newC2);
+          g.members.push(newC2.id);
+          save();
+          persist(g);
+          closeSheet();
+        }
         break;
       }
       case "remove-member": {
@@ -1070,13 +1241,13 @@
           alert("Ce membre a des dépenses liées ou un solde non nul : il ne peut pas être retiré.");
           return;
         }
-        g.members = g.members.filter(function(m){return m.id!==mid;});
+        g.members = g.members.filter(function(id){return id!==mid;});
         persist(g); render();
         break;
       }
       case "new-expense":
         g = findGroup(ui.groupId);
-        openSheet("expense", {description:"", amountCents:0, payerId:g.members[0].id, participantIds:g.members.map(function(m){return m.id;}), splitMode:"equal", date:todayISO(), emoji:"🧾"});
+        openSheet("expense", {description:"", amountCents:0, payerId:g.members[0], participantIds:g.members.slice(), splitMode:"equal", date:todayISO(), emoji:"🧾"});
         break;
       case "edit-expense": {
         g = findGroup(ui.groupId);
@@ -1145,7 +1316,7 @@
       }
       case "new-transfer":
         g = findGroup(ui.groupId);
-        openSheet("transfer", {fromId:g.members[0].id, toId:(g.members[1]||g.members[0]).id, amountCents:0, date:todayISO()});
+        openSheet("transfer", {fromId:g.members[0], toId:(g.members[1]||g.members[0]), amountCents:0, date:todayISO()});
         break;
       case "settle-now":
         openSheet("transfer", {fromId:el.getAttribute("data-from"), toId:el.getAttribute("data-to"), amountCents:parseInt(el.getAttribute("data-amount"),10), date:todayISO()});
@@ -1177,6 +1348,30 @@
         openSheet("backup", {}); break;
       case "export-data":
         exportData(); break;
+      case "open-profiles":
+        ui.screen="profiles"; render(); break;
+      case "open-stats":
+        ui.screen="stats"; render(); break;
+      case "set-me":
+        state.meId = el.getAttribute("data-id"); save(); render(); toast("Profil « Moi » mis à jour"); break;
+      case "add-contact":
+        openSheet("add-contact", {}); break;
+      case "save-contact": {
+        var cn = (document.getElementById("f-contact-name").value||"").trim();
+        if(cn){ state.contacts.push({id:uid(), name:cn}); save(); closeSheet(); render(); }
+        break;
+      }
+      case "remove-contact": {
+        var rmId = el.getAttribute("data-id");
+        var usedInGroup = state.groups.some(function(x){ return x.members.indexOf(rmId)>=0; });
+        if(usedInGroup){ alert("Ce profil est utilisé dans un ou plusieurs événements : il ne peut pas être supprimé."); return; }
+        if(confirm("Supprimer ce profil ?")){
+          state.contacts = state.contacts.filter(function(c){return c.id!==rmId;});
+          if(state.meId===rmId) state.meId = null;
+          save(); render();
+        }
+        break;
+      }
       case "close-sheet":
         closeSheet(); break;
     }
