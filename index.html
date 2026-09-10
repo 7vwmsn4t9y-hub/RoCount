@@ -347,7 +347,7 @@
   "use strict";
 
   var STORAGE_KEY = "ecot_state_v3";
-  var CURRENCIES = ["EUR","USD","ARS"];
+  var CURRENCIES = ["ARS","EUR","USD"];
   var GROUP_EMOJIS = ["🎉","🏖️","🏔️","🍽️","🚗","🏠","🎓","⚽️","🎸","🛳️","🎄","🧳"];
   var CATEGORIES = [
     {emoji:"🎟️", label:"Billet"},
@@ -546,6 +546,17 @@
 
   function findGroup(id){ return state.groups.find(function(g){return g.id===id;}); }
 
+  function shareOfExpense(e, personId){
+    if(e.type!=="expense" || e.participantIds.indexOf(personId)<0) return 0;
+    if(e.splitMode==="custom" && e.customShares){
+      return e.customShares[personId] || 0;
+    }
+    var n = e.participantIds.length || 1;
+    var idx = e.participantIds.indexOf(personId);
+    var share = Math.floor(e.amountCents/n);
+    var rem = e.amountCents - share*n;
+    return share + (idx<rem?1:0);
+  }
   function computeBalances(g){
     var bal = {}; g.members.forEach(function(id){ bal[id]=0; });
     g.expenses.forEach(function(e){
@@ -811,8 +822,9 @@
         if(e.type!=="expense") return;
         var y;
         try{ y = new Date(e.date+"T00:00:00").getFullYear(); }catch(err){ y = null; }
-        if(iAmIn && e.payerId===state.meId && y===year){
-          myTotals[g.currency] = (myTotals[g.currency]||0) + e.amountCents;
+        if(iAmIn && y===year){
+          var myShare = shareOfExpense(e, state.meId);
+          if(myShare>0) myTotals[g.currency] = (myTotals[g.currency]||0) + myShare;
         }
       });
       if(iAmIn){
@@ -876,7 +888,7 @@
   var sheetWasOpen = false;
 
   function sheetNewGroup(){
-    var d = ui.sheetData || {name:"", emoji:GROUP_EMOJIS[0], currency:"EUR", memberIds:[]};
+    var d = ui.sheetData || {name:"", emoji:GROUP_EMOJIS[0], currency:"ARS", memberIds:[]};
     var h = '<h3>Nouvel événement</h3>';
     h += '<div class="field"><label>Nom</label><input type="text" id="f-name" placeholder="Ex. Week-end à Annecy" value="'+escapeHtml(d.name)+'"></div>';
     h += '<div class="field"><label>Icône</label><div class="chip-row">';
@@ -1126,7 +1138,7 @@
       case "tab":
         ui.tab = el.getAttribute("data-tab"); render(); break;
       case "new-group":
-        openSheet("new-group", {name:"", emoji:GROUP_EMOJIS[0], currency:"EUR", memberIds: state.meId?[state.meId]:[]}); break;
+        openSheet("new-group", {name:"", emoji:GROUP_EMOJIS[0], currency:"ARS", memberIds: state.meId?[state.meId]:[]}); break;
       case "pick-emoji":
         currentDraft().emoji = el.getAttribute("data-val"); render(); break;
       case "pick-category":
